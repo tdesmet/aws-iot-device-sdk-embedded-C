@@ -168,9 +168,9 @@ static void topicNameFromThingAndAction(char *pTopic, const char *pThingName, Sh
 	}
 }
 
-static bool isAckForMyThingName(const char *pTopicName) {
+static bool isValidShadowVersionUpdate(const char *pTopicName) {
 	if(strstr(pTopicName, myThingName) != NULL &&
-	   ((strstr(pTopicName, "get/accepted") != NULL) || (strstr(pTopicName, "update/accepted") != NULL) ||
+	   ((strstr(pTopicName, "get/accepted") != NULL) ||
 		(strstr(pTopicName, "delta") != NULL))) {
 		return true;
 	}
@@ -201,7 +201,7 @@ static void AckStatusCallback(AWS_IoT_Client *pClient, char *topicName, uint16_t
 		return;
 	}
 
-	if(isAckForMyThingName(topicName)) {
+	if(isValidShadowVersionUpdate(topicName)) {
 		uint32_t tempVersionNumber = 0;
 		if(extractVersionNumber(shadowRxBuf, pJsonHandler, tokenCount, &tempVersionNumber)) {
 			if(tempVersionNumber > shadowJsonVersionNum) {
@@ -214,7 +214,7 @@ static void AckStatusCallback(AWS_IoT_Client *pClient, char *topicName, uint16_t
 		for(i = 0; i < MAX_ACKS_TO_COMEIN_AT_ANY_GIVEN_TIME; i++) {
 			if(!AckWaitList[i].isFree) {
 				if(strcmp(AckWaitList[i].clientTokenID, temporaryClientToken) == 0) {
-					Shadow_Ack_Status_t status;
+					Shadow_Ack_Status_t status = SHADOW_ACK_REJECTED;
 					if(strstr(topicName, "accepted") != NULL) {
 						status = SHADOW_ACK_ACCEPTED;
 					} else if(strstr(topicName, "rejected") != NULL) {
@@ -370,7 +370,8 @@ IoT_Error_t subscribeToShadowActionAcks(const char *pThingName, ShadowActions_t 
 	if(clearBothEntriesFromList) {
 		if(indexAcceptedSubList >= 0) {
 			SubscriptionList[indexAcceptedSubList].isFree = true;
-		} else if(indexRejectedSubList >= 0) {
+		}
+		if(indexRejectedSubList >= 0) {
 			SubscriptionList[indexRejectedSubList].isFree = true;
 		}
 		if(SubscriptionList[indexAcceptedSubList].count == 1) {
